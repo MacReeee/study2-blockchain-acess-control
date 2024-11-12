@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package raft;
+
+option go_package = "proto/raft";
+
+message LogEntry {
+    int32 term = 1; // 当前日志条目对应的任期号
+    bytes data = 2; // 日志条目的数据
+    int32 index = 3; // 日志条目的索引
+}
+
+message AppendEntryRequest {
+    int32 term = 1; // 领导者的任期号
+    int32 leaderId = 2; // 领导者的 Id，以便于跟随者重定向请求
+    LogEntry entry = 3; // 需要复制的日志条目（即将要发送给其他服务器的日志条目）
+    int32 prevLogIndex = 4; // 领导者的 prevLogIndex
+    int32 prevLogTerm = 5; // 领导者的 prevLogTerm
+    int32 leaderCommit = 6; // 领导者的 commitIndex
+}
+
+message AppendEntryResponse {
+    int32 term = 1; // 当前的任期号，用于领导者更新自己
+    bool success = 2; // 跟随者包含了匹配上 prevLogIndex 和 prevLogTerm 的日志时为真
+    int32 matchIndex = 3; // 跟随者日志中最后一个条目的索引
+}
+
+service Raft {
+    rpc AppendEntry(AppendEntryRequest) returns (AppendEntryResponse);
+}
