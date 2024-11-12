@@ -16,3 +16,10 @@ func IntToHex(num int64) []byte {
 
 	return buff.Bytes()
 }
+
+func HandleError(err error) {
+	if err == nil {
+		return
+	}
+	log.Panic(err)
+}

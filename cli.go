@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"strconv"
+
+	"github.com/boltdb/bolt"
 )
 
 // CLI responsible for processing command line arguments
@@ -47,6 +49,51 @@ func (cli *CLI) printChain() {
 		if len(block.PrevBlockHash) == 0 {
 			break
 		}
+	}
+}
+
+// debug: 仅供调试使用，检查数据库文件是否存在以及查看数据库内容
+func (cli *CLI) CheckDbFile() {
+	bc := cli.bc
+	// 检查数据库文件是否存在
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		fmt.Println("Database file does not exist.")
+	}
+	// 查看数据库内容
+	db := bc.db
+	// 开启只读事务
+	err := db.View(func(tx *bolt.Tx) error {
+		// 遍历数据库中的所有bucket
+		err := tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+			fmt.Printf("Bucket: %s\n", name)
+			return nil
+		})
+		return err
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+// 尝试修改cli模式为直接函数调用
+// 解析命令
+func (cli *CLI) Command(command []byte, data []byte) {
+	// if string(command) == "addblock" {
+	// 	cli.addBlock(string(data))
+	// } else if string(command) == "printchain" {
+	// 	cli.printChain()
+	// } else if string(command) == "exit" {
+	// 	os.Exit(0)
+	// }
+	switch string(command) {
+	case "addblock":
+		cli.addBlock(string(data))
+	case "printchain":
+		cli.printChain()
+	case "exit":
+		os.Exit(0)
+	case "checkdb":
+		cli.CheckDbFile()
 	}
 }
 
