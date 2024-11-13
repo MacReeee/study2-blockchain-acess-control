@@ -12,7 +12,7 @@ message LogEntry {
 
 message AppendEntryRequest {
     int32 term = 1; // 领导者的任期号
-    int32 leaderId = 2; // 领导者的 Id，以便于跟随者重定向请求
+    string leaderAddress = 2; // 领导者的地址，以便于跟随者重定向请求
     LogEntry entry = 3; // 需要复制的日志条目（即将要发送给其他服务器的日志条目）
     int32 prevLogIndex = 4; // 领导者的 prevLogIndex
     int32 prevLogTerm = 5; // 领导者的 prevLogTerm
