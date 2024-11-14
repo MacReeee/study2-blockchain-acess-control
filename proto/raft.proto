@@ -19,10 +19,18 @@ message AppendEntryRequest {
     int32 leaderCommit = 6; // 领导者的 commitIndex
 }
 
+enum ErrorCode {
+    SUCCESS = 0;           // 表示成功
+    TERM_MISMATCH = 1;     // 任期不匹配
+    LOG_INCONSISTENCY = 2; // 日志不一致
+    LOG_DUPLICATE = 3;     // 日志重复
+}
+
 message AppendEntryResponse {
     int32 term = 1; // 当前的任期号，用于领导者更新自己
     bool success = 2; // 跟随者包含了匹配上 prevLogIndex 和 prevLogTerm 的日志时为真
     int32 matchIndex = 3; // 跟随者日志中最后一个条目的索引
+    ErrorCode errorCode = 4; // 错误码
 }
 
 service Raft {

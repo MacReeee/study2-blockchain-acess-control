@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"study2/raft"
 	"time"
@@ -41,12 +42,12 @@ func main() {
 	// 创建 Raft 节点
 	node := raft.NewRaftNode(role, *addressFlag)
 	node.Peers = peers
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// 如果是 Leader 节点，尝试提交数据
 	if role == raft.Leader {
 		time.Sleep(1 * time.Second) // 等待其他节点启动
-		for i := 0; i < 3; i++ {
+		for i := 0; i < math.MaxInt32; i++ {
 			testData := append([]byte("Hello, Raft!"), byte(i+65))
 			fmt.Println("Leader 提交数据...")
 
@@ -58,7 +59,7 @@ func main() {
 		}
 
 		// 等待日志复制完成
-		// time.Sleep(3 * time.Second)
+		//time.Sleep(1 * time.Second)
 	} else {
 		// 如果是 Follower 节点，保持服务运行等待 Leader 的 AppendEntries 请求
 		select {} // 阻塞以保持程序运行
