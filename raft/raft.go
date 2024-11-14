@@ -35,24 +35,30 @@ const (
 var timeout = 2 * time.Hour
 
 type RaftNode struct {
-	sync.Mutex                                          // 保证某些情况下的并发安全
+	sync.RWMutex                                        // 保证某些情况下的并发安全
 	pb.UnimplementedRaftServer                          // 保证实现了 RaftServer 接口
 	Address                    string                   // 节点地址
 	Role                       Role                     // 当前节点的角色
 	Term                       int32                    // 当前任期
 	CommitIndex                int32                    // 已提交的日志索引
 	Logs                       []*pb.LogEntry           // 日志
+	LogsBuffer                 []*pb.LogEntry           // 日志缓冲区
+	logsBufferLock             sync.Mutex               // 保证LogsBuffer的并发安全
+	batchTimer                 *time.Ticker             // log buffer触发器
 	Peers                      []string                 // 集群中的其他节点地址
 	Clients                    map[string]pb.RaftClient // 与其他节点的gRPC客户端
 	clientsLock                sync.Mutex               // 保证Clients的并发安全
 }
 
 func NewRaftNode(role Role, address string) *RaftNode {
+	ticker := time.NewTicker(100 * time.Millisecond)
 	raft := &RaftNode{
-		Address: address,
-		Role:    role,
-		Logs:    make([]*pb.LogEntry, 0),
-		Clients: make(map[string]pb.RaftClient),
+		Address:    address,
+		Role:       role,
+		Logs:       make([]*pb.LogEntry, 0),
+		LogsBuffer: make([]*pb.LogEntry, 0, 2000),
+		batchTimer: ticker,
+		Clients:    make(map[string]pb.RaftClient),
 	}
 	// 开启gRPC服务
 	go raft.startGRPCServer()
@@ -98,9 +104,19 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 		}
 
 		// 3. 检查日志是否重复
-		if int(req.PrevLogIndex) < len(r.Logs)-1 && req.Entry != nil { // 如果满足条件二，说明可能是心跳包或提交信息
-			// 日志重复，返回日志重复信息
-			log.Printf("日志重复, 日志索引 [%d] \n", req.Entry.Index)
+		duplicateCount := 0
+		startIndex := int(req.PrevLogIndex + 1)
+		for i, entry := range req.Entry {
+			// 检查从节点的日志是否已经包含该条目
+			if startIndex+i < len(r.Logs) && r.Logs[startIndex+i].Term == entry.Term && r.Logs[startIndex+i].Index == entry.Index {
+				duplicateCount++
+			} else {
+				break
+			}
+		}
+		// 如果所有条目都重复，返回重复错误
+		if duplicateCount == len(req.Entry) {
+			log.Printf("节点 [%s] 的日志重复, 且无可追加日志, 起始日志索引 [%d] \n", r.Address, req.PrevLogIndex+1)
 			matchedIndex := int32(len(r.Logs) - 1)
 			return &pb.AppendEntryResponse{
 				Term:       r.Term,
@@ -113,7 +129,8 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 		// 4. 如果匹配，删除从 PrevLogIndex + 1 开始的所有冲突日志，保证日志一致，并追加新的日志条目
 		if req.Entry != nil {
 			r.Logs = r.Logs[:req.PrevLogIndex+1]
-			r.Logs = append(r.Logs, req.Entry)
+			newEntries := req.Entry[duplicateCount:]
+			r.Logs = append(r.Logs, newEntries...)
 		}
 
 		log.Printf("日志长度: %d\n", len(r.Logs))
@@ -130,11 +147,25 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 	}
 
 	log.Println("Leader接收到AppendEntry请求 - ignore")
-	return &pb.AppendEntryResponse{Term: r.Term, Success: true}, nil
+	return &pb.AppendEntryResponse{Term: r.Term, Success: false, ErrorCode: pb.ErrorCode_SUCCESS}, nil
 }
 
 // 提供接口供外部调用，接收客户端的写请求
 func (r *RaftNode) SubmitData(data []byte) error {
+	if r.Role != Leader {
+		log.Println("非主节点接收到写请求")
+		return fmt.Errorf("当前节点不是Leader")
+	}
+
+	// 创建新的日志条目
+	NewEntry := pb.LogEntry{
+		Term:  r.Term,
+		Data:  data,
+		Index: int32(len(r.Logs)),
+	}
+}
+
+func (r *RaftNode) sendBufferdLogs(data []byte) error {
 	r.Lock()
 	defer r.Unlock()
 

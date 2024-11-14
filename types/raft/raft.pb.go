@@ -140,12 +140,12 @@ type AppendEntryRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Term          int32     `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`                  // 领导者的任期号
-	LeaderAddress string    `protobuf:"bytes,2,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"` // 领导者的地址，以便于跟随者重定向请求
-	Entry         *LogEntry `protobuf:"bytes,3,opt,name=entry,proto3" json:"entry,omitempty"`                 // 需要复制的日志条目（即将要发送给其他服务器的日志条目）
-	PrevLogIndex  int32     `protobuf:"varint,4,opt,name=prevLogIndex,proto3" json:"prevLogIndex,omitempty"`  // 领导者的 prevLogIndex
-	PrevLogTerm   int32     `protobuf:"varint,5,opt,name=prevLogTerm,proto3" json:"prevLogTerm,omitempty"`    // 领导者的 prevLogTerm
-	LeaderCommit  int32     `protobuf:"varint,6,opt,name=leaderCommit,proto3" json:"leaderCommit,omitempty"`  // 领导者的 commitIndex
+	Term          int32       `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`                  // 领导者的任期号
+	LeaderAddress string      `protobuf:"bytes,2,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"` // 领导者的地址，以便于跟随者重定向请求
+	Entry         []*LogEntry `protobuf:"bytes,3,rep,name=entry,proto3" json:"entry,omitempty"`                 // 需要复制的日志条目（即将要发送给其他服务器的日志条目）
+	PrevLogIndex  int32       `protobuf:"varint,4,opt,name=prevLogIndex,proto3" json:"prevLogIndex,omitempty"`  // 领导者的 prevLogIndex
+	PrevLogTerm   int32       `protobuf:"varint,5,opt,name=prevLogTerm,proto3" json:"prevLogTerm,omitempty"`    // 领导者的 prevLogTerm
+	LeaderCommit  int32       `protobuf:"varint,6,opt,name=leaderCommit,proto3" json:"leaderCommit,omitempty"`  // 领导者的 commitIndex
 }
 
 func (x *AppendEntryRequest) Reset() {
@@ -194,7 +194,7 @@ func (x *AppendEntryRequest) GetLeaderAddress() string {
 	return ""
 }
 
-func (x *AppendEntryRequest) GetEntry() *LogEntry {
+func (x *AppendEntryRequest) GetEntry() []*LogEntry {
 	if x != nil {
 		return x.Entry
 	}
@@ -307,7 +307,7 @@ var file_raft_proto_rawDesc = []byte{
 	0x05, 0x52, 0x04, 0x74, 0x65, 0x72, 0x6d, 0x12, 0x24, 0x0a, 0x0d, 0x6c, 0x65, 0x61, 0x64, 0x65,
 	0x72, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d,
 	0x6c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x24, 0x0a,
-	0x05, 0x65, 0x6e, 0x74, 0x72, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x72,
+	0x05, 0x65, 0x6e, 0x74, 0x72, 0x79, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x72,
 	0x61, 0x66, 0x74, 0x2e, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x05, 0x65, 0x6e,
 	0x74, 0x72, 0x79, 0x12, 0x22, 0x0a, 0x0c, 0x70, 0x72, 0x65, 0x76, 0x4c, 0x6f, 0x67, 0x49, 0x6e,
 	0x64, 0x65, 0x78, 0x18, 0x04, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0c, 0x70, 0x72, 0x65, 0x76, 0x4c,
