@@ -66,11 +66,11 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 
 	// 作为Follower处理AppendEntry请求
 	if r.Role == Follower {
-		log.Println("Follower接收到AppendEntry请求")
+		log.Println("接收到AppendEntry请求")
 
 		// 1. 检查请求的任期是否大于当前任期
 		if req.Term < r.Term {
-			log.Printf("请求的任期 [%d] 小于节点 [%s] 的当前任期 [%d]\n", req.Term, r.Address, r.Term)
+			log.Printf("请求的任期 [%d] 小于节点当前任期 [%d]\n", req.Term, r.Address, r.Term)
 			return &pb.AppendEntryResponse{
 				Term:       r.Term,
 				Success:    false,
@@ -82,7 +82,11 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 
 		// 2. 检查日志是否落后以及日志是否一致
 		if int(req.PrevLogIndex) > len(r.Logs)-1 || (req.PrevLogIndex >= 0 && req.PrevLogTerm != r.Logs[req.PrevLogIndex].Term) {
-			log.Printf("节点 [%s] 的日志不一致\n", r.Address)
+			if int(req.PrevLogIndex) > len(r.Logs)-1 {
+				log.Printf("日志缺失，当前位置： [%d]，日志长度： [%d]\n", req.PrevLogIndex, len(r.Logs))
+			} else {
+				log.Printf("日志不一致\n")
+			}
 			matchedIndex := min(req.PrevLogIndex-1, int32(len(r.Logs)-1)) // 如果条件1满足，说明单纯的日志缺失，matchedIndex = int32(len(r.Logs)-1) 如果条件2满足，说明日志不一致， matchedIndex = req.PrevLogIndex-1
 			// 向主节点请求缺失的日志
 			return &pb.AppendEntryResponse{
@@ -96,7 +100,7 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 		// 3. 检查日志是否重复
 		if int(req.PrevLogIndex) < len(r.Logs)-1 && req.Entry != nil { // 如果满足条件二，说明可能是心跳包或提交信息
 			// 日志重复，返回日志重复信息
-			log.Printf("节点 [%s] 的日志重复, 日志索引 [%d] \n", r.Address, req.Entry.Index)
+			log.Printf("日志重复, 日志索引 [%d] \n", req.Entry.Index)
 			matchedIndex := int32(len(r.Logs) - 1)
 			return &pb.AppendEntryResponse{
 				Term:       r.Term,
@@ -112,7 +116,7 @@ func (r *RaftNode) AppendEntry(ctx context.Context, req *pb.AppendEntryRequest) 
 			r.Logs = append(r.Logs, req.Entry)
 		}
 
-		log.Printf("节点 [%s] 的日志长度: %d\n", r.Address, len(r.Logs))
+		log.Printf("日志长度: %d\n", len(r.Logs))
 
 		// 5. 更新 CommitIndex 为 LeaderCommit 和自身最大值
 		r.CommitIndex = max(req.LeaderCommit, r.CommitIndex)
@@ -294,6 +298,11 @@ func (r *RaftNode) startGRPCServer() {
 }
 
 func (r *RaftNode) HandleInConsistency(peer string, matchIndex int32) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("处理日志不一致时发生错误: %v\n", err)
+		}
+	}()
 	client, err := r.getClient(peer)
 	if err != nil {
 		log.Printf("获取与节点%s的gRPC客户端失败: %v\n", peer, err)
