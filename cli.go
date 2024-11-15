@@ -78,13 +78,6 @@ func (cli *CLI) CheckDbFile() {
 // 尝试修改cli模式为直接函数调用
 // 解析命令
 func (cli *CLI) Command(command []byte, data []byte) {
-	// if string(command) == "addblock" {
-	// 	cli.addBlock(string(data))
-	// } else if string(command) == "printchain" {
-	// 	cli.printChain()
-	// } else if string(command) == "exit" {
-	// 	os.Exit(0)
-	// }
 	switch string(command) {
 	case "addblock":
 		cli.addBlock(string(data))

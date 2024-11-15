@@ -34,6 +34,8 @@ const (
 
 var timeout = 2 * time.Hour
 
+var maxBatchSize int32 = 50000 // 补发每次发送的最大日志条目数量，可根据实际情况调整
+
 type RaftNode struct {
 	sync.Mutex                                          // 保证某些情况下的并发安全
 	pb.UnimplementedRaftServer                          // 保证实现了 RaftServer 接口
@@ -66,26 +68,23 @@ func NewRaftNode(role Role, address string) *RaftNode {
 	go raft.startGRPCServer()
 	// 开启日志缓冲区处理
 	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				raft.Lock()
-				if raft.Role != Leader {
-					raft.Unlock()
-					continue
-				}
+		for range ticker.C {
+			raft.Lock()
+			if raft.Role != Leader {
+				raft.Unlock()
+				continue
+			}
 
-				if len(raft.LogsBuffer) > 0 {
-					entries := make([]*pb.LogEntry, len(raft.LogsBuffer))
-					copy(entries, raft.LogsBuffer)
-					raft.LogsBuffer = raft.LogsBuffer[:0] // 清空日志缓冲区
-					raft.Unlock()
-					if err := raft.sendBufferdLogs(entries); err != nil {
-						log.Printf("日志同步失败，触发补全机制: %v", err)
-					}
-				} else {
-					raft.Unlock()
+			if len(raft.LogsBuffer) > 0 {
+				entries := make([]*pb.LogEntry, len(raft.LogsBuffer))
+				copy(entries, raft.LogsBuffer)
+				raft.LogsBuffer = raft.LogsBuffer[:0] // 清空日志缓冲区
+				raft.Unlock()
+				if err := raft.sendBufferdLogs(entries); err != nil {
+					log.Printf("日志同步失败，触发补全机制: %v", err)
 				}
+			} else {
+				raft.Unlock()
 			}
 		}
 	}()
@@ -382,11 +381,29 @@ func (r *RaftNode) HandleInConsistency(peer string, matchIndex int32) {
 		return
 	}
 
+	// // ANSI 转义码: 红色前景色
+	// red := "\033[31m"
+	// // ANSI 转义码: 重置颜色
+	// reset := "\033[0m"
+
 	for {
 		// 获取字段值
 		r.Lock()
 		endIndex := len(r.Logs)
-		entries := r.Logs[matchIndex+1 : endIndex]
+
+		if matchIndex > int32(endIndex) {
+			r.Unlock()
+			r.Wg.Done()
+			return
+		}
+
+		// 计算本次需要发送的日志条目数
+		batchEnd := matchIndex + maxBatchSize + 1
+		if batchEnd > int32(endIndex) {
+			batchEnd = int32(endIndex)
+		}
+
+		entries := r.Logs[matchIndex+1 : batchEnd]
 		PrevLogIndex := matchIndex
 		var PrevLogTerm int32
 		if matchIndex < 0 {
@@ -412,14 +429,14 @@ func (r *RaftNode) HandleInConsistency(peer string, matchIndex int32) {
 		res, err := client.AppendEntry(ctx, req)
 		if err != nil {
 			log.Printf("向节点%s发送 [补发缺失] AppendEntry请求失败, 序号 [%d] - [%d], 错误信息: %v\n", peer, matchIndex+1, endIndex, err)
+			r.Wg.Done()
 			return
 		}
 
 		// 处理异常
 		if res.Success {
 			log.Printf("向节点%s补发日志成功, 序号 [%d] - [%d]\n", peer, matchIndex+1, endIndex)
-			r.Wg.Done()
-			return
+			matchIndex = res.MatchIndex
 		} else if res.ErrorCode == pb.ErrorCode_LOG_INCONSISTENCY {
 			log.Printf("向节点%s补发日志失败, 继续补发, 序号 [%d] - [%d]\n", peer, res.MatchIndex+1, endIndex)
 			matchIndex = res.MatchIndex

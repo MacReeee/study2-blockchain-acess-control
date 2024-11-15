@@ -69,9 +69,10 @@ func main() {
 	node.Peers = config.Peers
 
 	// 如果是 Leader 节点，尝试提交数据
+	MaxTry := 1000000
 	if role == raft.Leader {
 		time.Sleep(1 * time.Second) // 等待其他节点启动
-		for i := 0; i < 1000000; i++ {
+		for i := 0; i < MaxTry; i++ {
 			testData := append([]byte("Log_"), byte(i+65))
 
 			if err := node.SubmitData(testData); err != nil {
@@ -80,12 +81,24 @@ func main() {
 			// time.Sleep(time.Second)
 			if i%50000 == 0 {
 				log.Printf("已发送日志数: [%d] 条数据, 已提交日志数：[%d]", i, node.CommitIndex)
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
 	} else {
+		go func() {
+			for {
+				log.Printf("当前日志长度: %d", len(node.Logs))
+				if len(node.Logs) >= MaxTry {
+					os.Exit(0)
+				}
+				time.Sleep(5 * time.Second)
+			}
+		}()
 		// 如果是 Follower 节点，保持服务运行等待 Leader 的 AppendEntries 请求
 		select {} // 阻塞以保持程序运行
 	}
 	node.Wg.Wait()
+	log.Printf("已提交日志数：[%d]", node.CommitIndex)
+	time.Sleep(5 * time.Second)
 	fmt.Println("结束")
 }
