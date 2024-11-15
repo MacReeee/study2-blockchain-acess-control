@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"study2/raft"
 	"time"
@@ -68,27 +67,25 @@ func main() {
 	// 创建 Raft 节点
 	node := raft.NewRaftNode(role, config.Address)
 	node.Peers = config.Peers
-	time.Sleep(1 * time.Second)
 
 	// 如果是 Leader 节点，尝试提交数据
 	if role == raft.Leader {
 		time.Sleep(1 * time.Second) // 等待其他节点启动
-		for i := 0; i < math.MaxInt32; i++ {
-			testData := append([]byte("Hello, Raft!"), byte(i+65))
-			fmt.Println("Leader 提交数据...")
+		for i := 0; i < 1000000; i++ {
+			testData := append([]byte("Log_"), byte(i+65))
 
 			if err := node.SubmitData(testData); err != nil {
 				fmt.Printf("Leader failed to submit data: %v\n", err)
-			} else {
-				fmt.Println("Data submitted by Leader.")
 			}
-
+			// time.Sleep(time.Second)
 			if i%50000 == 0 {
-				time.Sleep(10 * time.Second)
+				log.Printf("已发送日志数: [%d] 条数据, 已提交日志数：[%d]", i, node.CommitIndex)
 			}
 		}
 	} else {
 		// 如果是 Follower 节点，保持服务运行等待 Leader 的 AppendEntries 请求
 		select {} // 阻塞以保持程序运行
 	}
+	node.Wg.Wait()
+	fmt.Println("结束")
 }

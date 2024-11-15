@@ -25,6 +25,8 @@ func main() {
 		fmt.Println("SubmitData succeeded.")
 	}
 
+	time.Sleep(time.Second)
+
 	// 检查日志是否包含提交的数据
 	if len(node.Logs) != 1 {
 		log.Fatalf("Expected log to contain one entry, got %d entries", len(node.Logs))
@@ -62,6 +64,11 @@ func main() {
 	node.SubmitData([]byte("def"))
 	node.SubmitData([]byte("ghi"))
 	node.SubmitData([]byte("jkl"))
+	for i := 0; i < 100; i++ {
+		node.SubmitData([]byte(fmt.Sprintf("data-%d", i)))
+	}
+
+	time.Sleep(2 * time.Second)
 
 	for _, entry := range node.Logs {
 		fmt.Println(string(entry.Data))

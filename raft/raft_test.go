@@ -80,7 +80,7 @@ func TestAppendEntries(t *testing.T) {
 	req := &pb.AppendEntryRequest{
 		Term:          1,
 		LeaderAddress: "127.0.0.1:5002",
-		Entry:         entry,
+		Entry:         []*pb.LogEntry{entry},
 		PrevLogIndex:  -1,
 		PrevLogTerm:   0,
 		LeaderCommit:  0,
