@@ -411,7 +411,7 @@ func (r *RaftNode) HandleInConsistency(peer string, matchIndex int32) {
 		defer cancel()
 		res, err := client.AppendEntry(ctx, req)
 		if err != nil {
-			log.Printf("向节点%s发送 [补发缺失] AppendEntry请求失败, 序号 [%d] - [%d]\n", peer, matchIndex+1, endIndex)
+			log.Printf("向节点%s发送 [补发缺失] AppendEntry请求失败, 序号 [%d] - [%d], 错误信息: %v\n", peer, matchIndex+1, endIndex, err)
 			return
 		}
 
